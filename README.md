@@ -21,7 +21,7 @@ A powerful and user-friendly bulk file renaming tool built with Python and `cust
 
 ## 📸 GUI Overview
 
-![Demo GIF](assets/demo.gif)
+![Demo GIF](assets/Demo.gif)
 
 ---
 
