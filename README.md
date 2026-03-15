@@ -1,71 +1,48 @@
+# Bulk File Renamer
 
-# 🗂️ Bulk File Renamer (CustomTkinter GUI)
+Bulk file renaming tool with a CustomTkinter GUI. Preview changes, detect collisions, and undo the last operation.
 
-A powerful and user-friendly bulk file renaming tool built with Python and `customtkinter`. Rename hundreds of files in seconds using prefixes, suffixes, find/replace (with optional regex), extension filtering, preview before rename, undo feature, and support for saving/loading presets.
+![Python](https://img.shields.io/badge/python-3.10%2B-blue)
+![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)
+![License](https://img.shields.io/badge/license-MIT-green)
 
----
+## Demo
 
-## 🚀 Features
+![Demo](assets/Demo.gif)
 
-* ✅ **GUI Interface** with `customtkinter` (Dark Mode)
-* 📝 Add **prefix** and **suffix** to filenames
-* 🔁 **Find & Replace** (supports Regex)
-* 🎯 **Filter by Extension** (e.g. `.jpg`, `.png`, `.txt`)
-* 🔍 **Preview Changes** before renaming
-* ⛔ **Collision Detection** (duplicate names, existing files, permission errors)
-* ↩️ **Undo Last Rename**
-* 💾 **Save & Load Presets** (as `.json`)
-* ⚡ Multithreaded for non-blocking operations
+## Features
 
----
+- Prefix and suffix support
+- Find/replace with optional regex
+- Extension filtering
+- Preview before applying changes
+- Collision detection
+- Undo last rename
+- Preset save/load (JSON)
 
-## 📸 GUI Overview
+## Requirements
 
-![Demo GIF](assets/Demo.gif)
+- Python 3.10+
+- `customtkinter`
 
----
+## Quickstart
 
-## 🛠️ Installation
+```bash
+python -m pip install customtkinter
+python Bulk_File_Renamer.py
+```
 
-1. Install dependencies:
+## Usage
 
-   ```bash
-   pip install customtkinter
-   ```
+1. Select a folder.
+2. Configure prefix, suffix, find/replace, and extensions.
+3. Click `Preview Changes`.
+4. Click `Apply Renames`.
+5. Use `Undo Last Rename` if needed.
 
-2. Run the program:
+## Presets
 
-   ```bash
-   python bulk_renamer.py
-   ```
-
----
-
-## 🧠 How It Works
-
-1. Select a folder with files.
-2. Apply any combination of:
-
-   * Prefix
-   * Suffix
-   * Find/Replace (regex optional)
-   * Extension filters
-3. Click **Preview Changes** to simulate renaming.
-4. If all looks good, click **Apply Renames**.
-5. Click **Undo Last Rename** if needed.
-
----
-
-## 💾 Presets
-
-* **Save Preset**: Save current rename config (prefix, suffix, filters, etc.)
-* **Load Preset**: Quickly reuse saved configurations.
-
-Presets are stored as JSON files.
-
----
-
-## 🧱 Example Preset JSON
+Presets are saved as JSON with the current rename configuration.
 
 ```json
 {
@@ -78,33 +55,20 @@ Presets are stored as JSON files.
 }
 ```
 
----
+## Project Structure
 
-## ⚠️ Safety & Warnings
+- `Bulk_File_Renamer.py` - main application
+- `assets/Demo.gif` - demo animation
+- `assets/app_icon.png` - app icon (PNG)
+- `assets/app_icon.ico` - app icon (Windows)
+- `test_files` - sample files for local testing
 
-* Preview changes before applying them.
-* Undo works only for the **last operation**.
-* The app does **not rename folders**, only files.
+## Notes
 
----
+- Only files are renamed, not folders.
+- Undo restores the last successful rename batch only.
+- On Windows, rename collisions are treated case-insensitively.
 
-## 📂 Supported Platforms
+## License
 
-* ✅ Windows
-* ✅ Linux
-* ✅ macOS
-
-> *(Tested with Python 3.10+)*
-
----
-
-## 📜 License
-
-MIT License. Use, modify, and share freely.
-
----
-
-## ✨ Credits
-
-Built with ❤️ by \[MubarakSec] using `customtkinter` and Python.
-
+MIT License
