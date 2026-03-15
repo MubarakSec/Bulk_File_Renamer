@@ -3,7 +3,7 @@ import os
 import re
 import threading
 import json
-from tkinter import filedialog, messagebox
+from tkinter import filedialog, messagebox, PhotoImage
 from collections import deque
 
 class BulkFileRenamer(ctk.CTk):
@@ -15,6 +15,21 @@ class BulkFileRenamer(ctk.CTk):
         self.geometry("1000x550")
         ctk.set_appearance_mode("Dark")
         self._undo_stack = deque(maxlen=10)  # Store last 10 rename operations
+        self._case_insensitive = os.name == "nt"
+        icon_dir = os.path.join(os.path.dirname(__file__), "assets")
+        icon_png = os.path.join(icon_dir, "app_icon.png")
+        icon_ico = os.path.join(icon_dir, "app_icon.ico")
+        if os.path.exists(icon_ico):
+            try:
+                self.iconbitmap(icon_ico)
+            except Exception:
+                pass
+        if os.path.exists(icon_png):
+            try:
+                self._icon_image = PhotoImage(file=icon_png)
+                self.iconphoto(False, self._icon_image)
+            except Exception:
+                pass
 
         # Create main container
         self.main_frame = ctk.CTkFrame(self)
@@ -128,24 +143,33 @@ class BulkFileRenamer(ctk.CTk):
         if folder:
             self.folder_path = folder
             self.folder_label.configure(text=os.path.basename(folder))
-            self.load_files()
+            self._undo_stack.clear()
+            self.undo_button.configure(state="disabled")
+            self.load_files(clear_preview=True)
             self.status_bar.configure(text=f"Loaded {len(self.original_files)} files")
             
-    def load_files(self):
+    def load_files(self, clear_preview=True):
         self.original_files = []
+        if clear_preview:
+            self.preview_data = []
         if not self.folder_path:
             return
             
         # Get extension filter
         ext_text = self.ext_filter_entry.get().strip()
-        extensions = [ext.strip().lower() for ext in ext_text.split(",")] if ext_text else []
+        extensions = (
+            [ext.strip().lower().lstrip(".") for ext in ext_text.split(",") if ext.strip()]
+            if ext_text
+            else []
+        )
         
         for filename in os.listdir(self.folder_path):
             filepath = os.path.join(self.folder_path, filename)
             if os.path.isfile(filepath):
                 if extensions:
                     file_ext = os.path.splitext(filename)[1].lower()
-                    if file_ext and file_ext[1:] not in extensions:
+                    file_ext = file_ext[1:] if file_ext else ""
+                    if file_ext not in extensions:
                         continue
                 self.original_files.append(filename)
         
@@ -181,6 +205,15 @@ class BulkFileRenamer(ctk.CTk):
         self.file_list.tag_config("green", foreground="#2ECC71")
         self.file_list.tag_config("red", foreground="#E74C3C")
 
+    def _ui(self, func, *args, **kwargs):
+        self.after(0, lambda: func(*args, **kwargs))
+
+    def _set_status(self, text):
+        self.status_bar.configure(text=text)
+
+    def _name_key(self, name):
+        return name.lower() if self._case_insensitive else name
+
     def generate_new_name(self, filename):
         name, ext = os.path.splitext(filename)
         
@@ -191,8 +224,8 @@ class BulkFileRenamer(ctk.CTk):
             if self.regex_var.get():
                 try:
                     name = re.sub(find_text, replace_text, name)
-                except re.error:
-                    return filename  # Return original on regex error
+                except re.error as e:
+                    return filename, f"Invalid regex ({str(e)})"
             else:
                 name = name.replace(find_text, replace_text)
         
@@ -201,39 +234,49 @@ class BulkFileRenamer(ctk.CTk):
         suffix = self.suffix_entry.get()
         new_name = f"{prefix}{name}{suffix}{ext}"
         
-        return new_name
+        return new_name, None
 
     def preview_changes(self):
         if not self.folder_path:
             self.status_bar.configure(text="Error: Please select a folder first!")
             return
             
-        self.load_files()  # Refresh file list with current filter
+        self.load_files(clear_preview=True)  # Refresh file list with current filter
         self.preview_data = []
         seen_names = set()
-        collision_names = set()
+        collision_keys = set()
         
         for filename in self.original_files:
-            new_name = self.generate_new_name(filename)
+            new_name, gen_error = self.generate_new_name(filename)
             original_path = os.path.join(self.folder_path, filename)
             new_path = os.path.join(self.folder_path, new_name)
+            norm_original = os.path.normcase(original_path)
+            norm_new = os.path.normcase(new_path)
+            key = self._name_key(new_name)
             
             # Check for potential issues
             status = "Ready"
-            if new_name in seen_names:
-                status = "Error: Duplicate name"
-                collision_names.add(new_name)
-            elif os.path.exists(new_path) and filename != new_name:
-                status = "Error: File exists"
-            elif not os.access(original_path, os.W_OK):
-                status = "Error: Permission denied"
+            if gen_error:
+                status = f"Error: {gen_error}"
+            else:
+                if new_name == filename:
+                    status = "No change"
+                if status == "Ready":
+                    if key in seen_names:
+                        status = "Error: Duplicate name"
+                        collision_keys.add(key)
+                    elif os.path.exists(new_path) and norm_original != norm_new:
+                        status = "Error: File exists"
+                    elif not os.access(self.folder_path, os.W_OK):
+                        status = "Error: Permission denied"
             
             self.preview_data.append((filename, new_name, status))
-            seen_names.add(new_name)
+            if not gen_error:
+                seen_names.add(key)
         
         # Update duplicate status for all collisions
         for i, (original, new_name, status) in enumerate(self.preview_data):
-            if new_name in collision_names and status == "Ready":
+            if self._name_key(new_name) in collision_keys and status == "Ready":
                 self.preview_data[i] = (original, new_name, "Error: Duplicate name")
         
         self.current_display = self.preview_data
@@ -258,7 +301,7 @@ class BulkFileRenamer(ctk.CTk):
         undo_actions = []
         
         for original, new, status in self.preview_data:
-            if "Error" in status:
+            if status != "Ready":
                 continue
                 
             src = os.path.join(self.folder_path, original)
@@ -267,35 +310,45 @@ class BulkFileRenamer(ctk.CTk):
             undo_actions.append((dst, src))  # For undo
         
         if not rename_actions:
-            self.status_bar.configure(text="No valid files to rename")
-            self.enable_buttons()
+            self._ui(self._set_status, "No changes to apply")
+            self._ui(self.enable_buttons)
             return
             
         # Store for undo
         self._undo_stack.append(undo_actions)
-        self.undo_button.configure(state="normal")
+        self._ui(self.undo_button.configure, state="normal")
         
         success_count = 0
         total = len(rename_actions)
         
         for i, (src, dst, original) in enumerate(rename_actions):
             try:
-                os.rename(src, dst)
+                if self._case_insensitive and os.path.normcase(src) == os.path.normcase(dst) and src != dst:
+                    temp_path = dst + ".rename_tmp"
+                    counter = 1
+                    while os.path.exists(temp_path):
+                        temp_path = f"{dst}.rename_tmp_{counter}"
+                        counter += 1
+                    os.rename(src, temp_path)
+                    os.rename(temp_path, dst)
+                else:
+                    os.rename(src, dst)
                 self.update_file_status(original, "Success")
                 success_count += 1
             except OSError as e:
                 self.update_file_status(original, f"Error: {str(e)}")
             
             progress = int((i + 1) / total * 100)
-            self.status_bar.configure(text=f"Renaming: {progress}% ({i+1}/{total})")
+            self._ui(self._set_status, f"Renaming: {progress}% ({i+1}/{total})")
         
-        self.status_bar.configure(
+        self._ui(
+            self._set_status,
             text=f"Renaming complete! {success_count} of {total} files renamed"
         )
-        self.enable_buttons()
+        self._ui(self.enable_buttons)
         
         # Refresh file list
-        self.load_files()
+        self._ui(self.load_files)
 
     def update_file_status(self, original, status):
         # Update status in preview data
@@ -327,7 +380,7 @@ class BulkFileRenamer(ctk.CTk):
     def perform_undo(self):
         undo_actions = self._undo_stack.pop()
         if not self._undo_stack:
-            self.undo_button.configure(state="disabled")
+            self._ui(self.undo_button.configure, state="disabled")
         
         total = len(undo_actions)
         success_count = 0
@@ -341,13 +394,11 @@ class BulkFileRenamer(ctk.CTk):
                 pass  # Silently continue
             
             progress = int((i + 1) / total * 100)
-            self.status_bar.configure(text=f"Undoing: {progress}% ({i+1}/{total})")
+            self._ui(self._set_status, f"Undoing: {progress}% ({i+1}/{total})")
         
-        self.status_bar.configure(
-            text=f"Undo complete! {success_count} of {total} files restored"
-        )
-        self.enable_buttons()
-        self.load_files()  # Refresh file list
+        self._ui(self._set_status, f"Undo complete! {success_count} of {total} files restored")
+        self._ui(self.enable_buttons)
+        self._ui(self.load_files)  # Refresh file list
 
     def save_preset(self):
         file_path = filedialog.asksaveasfilename(
